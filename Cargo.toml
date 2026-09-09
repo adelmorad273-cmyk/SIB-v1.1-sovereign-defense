@@ -1,0 +1,76 @@
+[package]
+name = "sib-sovereign-defense"
+version = "1.1.0"
+edition = "2021"
+authors = ["Adel Lakosha <genesis@sovereign-immune.io>"]
+description = "Sovereign Immunity Blueprint (SIB) v1.1 - Post-Quantum Self-Healing Defense Fabric"
+repository = "https://github.com/adelmorad273-cmyk/SIB-v1.1-sovereign-defense"
+license = "MIT OR Apache-2.0"
+keywords = ["cybersecurity", "post-quantum", "zero-copy", "byzantine-fault-tolerance", "sovereign-ai"]
+categories = ["cryptography", "network-programming", "no-std"]
+readme = "README.md"
+documentation = "https://github.com/adelmorad273-cmyk/SIB-v1.1-sovereign-defense/blob/main/ARCHITECTURE.md"
+homepage = "https://github.com/adelmorad273-cmyk/SIB-v1.1-sovereign-defense"
+
+# ========== الميزات ==========
+[features]
+default = []
+hw_counters = []           # عدادات العتاد المتقدمة (اختياري)
+tier2 = ["std"]            # تفعيل محرك الإجماع البيزنطي
+tier3 = ["std", "tier2"]   # تفعيل واجهة الحوكمة البشرية
+net = ["tier2", "tokio", "bytes", "rustls", "tokio-rustls"]  # تفعيل طبقة النقل الشبكي المشفر
+
+# ========== التبعيات ==========
+[dependencies]
+# النواة الأساسية لا تعتمد على أي شيء (no_std)
+# التبعيات التالية اختيارية، تُفعّل فقط عبر الميزات
+tokio = { version = "1.38", features = ["full"], optional = true }
+bytes = { version = "1.6", optional = true }
+rustls = { version = "0.23", optional = true }
+tokio-rustls = { version = "0.26", optional = true }
+rustls-pki-types = { version = "1.7", optional = true }
+
+# ========== تبعيات الاختبار ==========
+[dev-dependencies]
+rcgen = "0.13"   # لتوليد شهادات اختبارية أثناء فحص mTLS
+criterion = "0.5"  # للاختبارات الأداء
+
+# ========== تحسينات معمارية خاصة ==========
+[target.'cfg(target_arch = "aarch64")'.dependencies]
+# تحسينات خاصة بمعمارية AArch64 (TEE، TrustZone)
+# يمكن إضافة مكتبات مثل `cortex-m` أو `cortex-a` هنا إذا لزم الأمر
+
+# ========== إعدادات الإصدار ==========
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"   # لتقليل حجم المخرجات في بيئات TEE
+strip = true      # إزالة رموز التصحيح
+
+[profile.dev]
+opt-level = 0
+debug = true
+
+[profile.bench]
+opt-level = 3
+lto = true
+codegen-units = 1
+
+# ========== معايير linting ==========
+[lints.clippy]
+all = "deny"
+missing_docs = "deny"
+unsafe_code = "deny"
+
+# ========== metadata للنظام ==========
+[package.metadata.sib]
+genesis_architect = "Adel Lakosha"
+network_name = "SIB v1.1"
+genesis_date = "2026-09-09"
+tier1_support = true
+tier2_support = true
+tier3_support = true
+network_support = true
+post_quantum = true
+sealed = true
