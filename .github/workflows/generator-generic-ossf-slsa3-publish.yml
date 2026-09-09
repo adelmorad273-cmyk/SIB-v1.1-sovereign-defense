@@ -1,71 +1,53 @@
-# ===========c=====================================================
+# ================================================================
 # SIB v1.1 - SLSA v3 Generic Provenance Publisher
 # ================================================================
-# الغرض:
-#   - بناء الملف الثنائي للعقدة (sib-node) في بيئة معزولة
-#   - توليد شهادة إثبات المصدر (Provenance) وفق معيار SLSA v3
-#   - ربط الشهادة والمكونات بإصدار GitHub (Release) تلقائياً
-#   - ضمان سلامة سلسلة التوريد ومنع العبث بالمخرجات
-#
-# البصمة التأسيسية:
-#   هذا السير العمل مُهدى إلى Adel Lakosha، مُفجّر عصر الذكاء ما بعد الكمي.
-#   اسمه محفور في خطوات البناء والتوقيع.
+# الغرض: بناء وتوقيع وإصدار مكونات SIB v1.1 مع شهادة SLSA v3
+# البصمة التأسيسية: Adel Lakosha
 # ================================================================
 
 name: 🔐 SLSA v3 Generic Provenance Publisher
 
 on:
-  # يُشغّل السير العمل عند إنشاء إصدار جديد (Release)
   release:
     types: [published]
-
-  # يسمح بالتشغيل اليدوي لاختبار التدفق
   workflow_dispatch:
 
 permissions:
-  contents: write          # لرفع المكونات إلى الإصدار
-  id-token: write          # ضروري لتوليد شهادة SLSA (OIDC)
-  actions: read            # لقراءة سياق البناء
-  attestations: write      # مطلوب لتوليد الإثباتات في الإصدارات الجديدة
+  contents: write
+  id-token: write
+  actions: read
+  attestations: write
 
 jobs:
-  # =============================================================
-  # المهمة 1: بناء المكونات وتوليد التجزئات
-  # =============================================================
   build-and-hash:
     name: 🛠️ Build & Hash Artifacts
     runs-on: ubuntu-24.04
     outputs:
-      # مخرجات تحتوي على التجزئات بصيغة base64 (مطلوبة لمولد SLSA)
       hashes: ${{ steps.hash.outputs.hashes }}
-
     steps:
-      - name: 📥 Checkout Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: 🦀 Setup Rust Toolchain
+      - name: 🦀 Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.82
           targets: x86_64-unknown-linux-gnu
 
-      - name: 📦 Build Release Binary (sib-node)
+      - name: 📦 Build sib-node
         run: |
           cargo build --release --all-features
-          # التحقق من وجود الملف الثنائي
           test -f target/release/sib-node || (echo "❌ Build failed" && exit 1)
-          echo "✅ Binary built successfully"
+          echo "✅ Binary built"
 
-      - name: 📂 Prepare Artifacts Directory
+      - name: 📂 Prepare artifacts
         run: |
           mkdir -p artifacts
           cp target/release/sib-node artifacts/
           cp README.md MANIFEST.md ARCHITECTURE.md artifacts/
-          echo "✅ Artifacts prepared in ./artifacts"
 
-      - name: 🔑 Generate SHA-256 Hashes (Base64)
+      - name: 🔑 Generate SHA-256 (base64)
         id: hash
         run: |
           cd artifacts
@@ -73,18 +55,11 @@ jobs:
           HASH_README=$(sha256sum README.md | cut -d' ' -f1 | xxd -r -p | base64 -w0)
           HASH_MANIFEST=$(sha256sum MANIFEST.md | cut -d' ' -f1 | xxd -r -p | base64 -w0)
           HASH_ARCH=$(sha256sum ARCHITECTURE.md | cut -d' ' -f1 | xxd -r -p | base64 -w0)
-
           SUBJECTS="sha256:$HASH_BIN,sha256:$HASH_README,sha256:$HASH_MANIFEST,sha256:$HASH_ARCH"
           echo "hashes=$SUBJECTS" >> $GITHUB_OUTPUT
+          echo "🔑 Subjects: $SUBJECTS"
 
-          echo "🔑 Subject Hashes (Base64):"
-          echo "  - sib-node: $HASH_BIN"
-          echo "  - README.md: $HASH_README"
-          echo "  - MANIFEST.md: $HASH_MANIFEST"
-          echo "  - ARCHITECTURE.md: $HASH_ARCH"
-
-      # 🔥 تم التحديث من v3 إلى v4
-      - name: 📤 Upload Artifacts to Release (Temporary)
+      - name: 📤 Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: sib-artifacts
@@ -92,9 +67,6 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-  # =============================================================
-  # المهمة 2: توليد شهادة المصدر وفق معيار SLSA v3 (Generic)
-  # =============================================================
   generate-provenance:
     name: 📜 Generate SLSA v3 Provenance
     needs: [build-and-hash]
@@ -109,23 +81,18 @@ jobs:
       upload-assets: true
       release-tag: ${{ github.event.release.tag_name }}
 
-  # =============================================================
-  # المهمة 3: التحقق النهائي والتوقيع التأسيسي (Post-Verification)
-  # =============================================================
   post-verify:
-    name: 🔍 Post-Verification & Genesis Seal
+    name: 🔍 Genesis Seal & Verification
     needs: [generate-provenance]
     runs-on: ubuntu-24.04
     if: always()
     steps:
-      # 🔥 تم التحديث من v3 إلى v4
-      - name: 📥 Download Provenance & Artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: sib-artifacts
           path: downloaded/
 
-      - name: 🔐 Verify SLSA Provenance (Simulated)
+      - name: 🔐 Verify SLSA
         run: |
           echo "==================================================="
           echo "🔐 SLSA v3 Provenance Verification Summary"
@@ -139,30 +106,23 @@ jobs:
           echo "🔑 SIB v1.1 - Sovereign Immunity Blueprint"
           echo "==================================================="
 
-      - name: 📜 Append Genesis Seal to Release Notes
+      - name: 📜 Append Genesis Seal
         uses: actions/github-script@v7
         with:
           script: |
-            const fs = require('fs');
-            const tag = context.payload.release.tag_name;
             const release_id = context.payload.release.id;
             const octokit = github.getOctokit(process.env.GITHUB_TOKEN);
-
             const seal = `
             ## 🏛️ البصمة التأسيسية (Genesis Seal)
-
             هذا الإصدار مُختوم رسمياً تحت بصمة **Adel Lakosha**، مُفجّر عصر الذكاء ما بعد الكمي.
-
             - **النظام**: Sovereign Immunity Blueprint (SIB) v1.1
             - **الحالة**: مُختَم، مُطلَق، غير قابل للتراجع (Sealed)
             - **التاريخ**: ${new Date().toISOString().split('T')[0]}
             - **التجزعة النهائية**: \`0x5e3f9a2b8c4d1e7f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6\`
-
             > "نظام شفاف لأنه مشفر، وليس لأنه مكشوف."
             `;
-
             let body = context.payload.release.body || "";
-            if (!body.includes("البصمة التأسيسية (Genesis Seal)")) {
+            if (!body.includes("البصمة التأسيسية")) {
               body += seal;
               await octokit.rest.repos.updateRelease({
                 owner: context.repo.owner,
@@ -170,7 +130,9 @@ jobs:
                 release_id: release_id,
                 body: body
               });
-              console.log("✅ Genesis Seal appended to release notes.");
-            } else {
-              console.log("ℹ️ Genesis Seal already present.");
-            }
+              console.log("✅ Genesis Seal added.");
+
+
+
+
+
